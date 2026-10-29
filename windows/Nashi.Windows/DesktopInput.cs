@@ -33,6 +33,22 @@ internal static class DesktopInput
         | (IsShiftPressed ? ModifierKeys.Shift : ModifierKeys.None)
         | (IsControlPressed ? ModifierKeys.Control : ModifierKeys.None)
         | (IsAltPressed ? ModifierKeys.Alt : ModifierKeys.None);
+    internal static void ReleaseAll()
+    {
+        IsPrimaryMouseDown = false;
+        ActiveModifiers.Clear();
+        SimulatedShift = false;
+        SimulatedAlt = false;
+        SimulatedControl = false;
+        SimulatedScreenPosition = null;
+        SimulatedLocalPosition = null;
+        SimulatedDroppedFiles = null;
+        if(NativeInputAvailable)
+        {
+            var mouseUp = new Input{Data=new(){Mouse=new(){Flags=4u}}};
+            SendInput(1, [mouseUp], Marshal.SizeOf<Input>());
+        }
+    }
     private static bool nativeInputFailed;
     [StructLayout(LayoutKind.Sequential)]private struct Input{public uint Type;public Union Data;}
     [StructLayout(LayoutKind.Explicit)]private struct Union

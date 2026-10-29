@@ -27,7 +27,7 @@ public partial class App:Application
                 try{Report(["Focused native interaction checks timed out."]);}
                 finally
                 {
-                    try{DesktopInput.HoldMouse(false);DesktopInput.Hold(System.Windows.Input.Key.LeftCtrl,false);}catch{}
+                    try{DesktopInput.ReleaseAll();}catch{}
                     Environment.Exit(1);
                 }
             },null,Timeout.Infinite,Timeout.Infinite);
