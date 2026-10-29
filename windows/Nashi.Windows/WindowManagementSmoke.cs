@@ -7,7 +7,6 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Nashi.Core;
 namespace Nashi.Windows;
-
 internal static class WindowManagementSmoke
 {
     [DllImport("user32.dll",CharSet=CharSet.Unicode)]private static extern nint FindWindow(string? type,string title);
@@ -15,7 +14,6 @@ internal static class WindowManagementSmoke
     [DllImport("user32.dll")]private static extern bool SetCursorPos(int x,int y);
     [DllImport("user32.dll")]private static extern void mouse_event(uint flags,uint x,uint y,uint data,nuint extra);
     [DllImport("user32.dll")]private static extern void keybd_event(byte key,byte scan,uint flags,nuint extra);
-
     internal static void Run(string output,Action<bool,string> check)
     {
         using var manager=new WindowManagement();
@@ -56,7 +54,6 @@ internal static class WindowManagementSmoke
             check(manager.ActiveWheel is null&&!manager.PlacementPending,"Escape left the window wheel open or queued a placement.");
             var cancelled=WindowManagement.Bounds(handle);
             check(Math.Abs(cancelled.Width-620)<3&&Math.Abs(cancelled.Height-420)<3,"Escape applied a layout instead of preserving the native drag size.");
-
             var wheel=new WheelWindow(null,Enum.GetValues<WindowPlacement>().Select(p=>new ToolChoice(p.ToString(),p.Title(),"",p)).ToArray(),_=>{},externalDrag:true);
             wheel.Show();wheel.UpdateLayout();DesktopInput.Pump();
             var capture=new RenderTargetBitmap((int)wheel.ActualWidth,(int)wheel.ActualHeight,96,96,PixelFormats.Pbgra32);capture.Render(wheel);ImageEngine.Save(capture,Path.Combine(output,"windows-window-management.png"),"png");wheel.Close();
@@ -82,6 +79,44 @@ internal static class WindowManagementSmoke
     private static void Gesture(nint target,WindowManagement manager,WindowPlacement choice,bool shift,bool cancel,bool resize=false)
     {
         var reset=new WindowFrame(80,90,620,420);_ =WindowManagement.RequestFrame(target,reset);DesktopInput.Pump(150);
+        if(!WindowManagement.Native.GetWindowRect(target,out var targetRect))throw new Exception("Fixture bounds unavailable.");
+        var startX=resize?targetRect.Right-3:320;var startY=resize?targetRect.Bottom-3:104;
+        if(!SetCursorPos(startX,startY))
+        {
+            DesktopInput.SimulatedChecks++;
+            try
+            {
+                if(shift)DesktopInput.SimulatedShift=true;else DesktopInput.SimulatedAlt=true;
+                DesktopInput.SimulatedScreenPosition=new Point(startX,startY);
+                manager.SimulateMoveStart(target,new WindowManagement.Native.Point{X=startX,Y=startY});
+                DesktopInput.Pump(50);
+                DesktopInput.SimulatedScreenPosition=new Point(startX+55,startY+41);
+                var deadline=DateTime.UtcNow.AddSeconds(3);
+                while(!manager.WheelReady&&DateTime.UtcNow<deadline)DesktopInput.Pump(50);
+                if(!manager.WheelReady||manager.ActiveWheel is null)throw new Exception("Window wheel did not finish positioning during a simulated move.");
+                var candidate=new WindowInteropHelper(manager.ActiveWheel).Handle;
+                var frame=WindowManagement.Bounds(candidate);
+                var placements=Enum.GetValues<WindowPlacement>();
+                manager.Trace?.Invoke($"test-simulated wheel={frame} choice={choice} resizeBorder={resize}");
+                var index=Array.IndexOf(placements,choice);
+                var angle=(WheelPresentation.StartAngle(placements.Length)+index*360d/placements.Length)*Math.PI/180;
+                var targetX=(int)(frame.X+frame.Width*(.5+.33*Math.Cos(angle)));
+                var targetY=(int)(frame.Y+frame.Height*(.5+.33*Math.Sin(angle)));
+                DesktopInput.SimulatedScreenPosition=new Point(targetX,targetY);
+                manager.ActiveWheel.HoverScreen(new(targetX,targetY));
+                DesktopInput.Pump(180);
+                manager.SimulateMoveEnd(new WindowManagement.Native.Point{X=targetX,Y=targetY},cancel:cancel);
+            }
+            finally
+            {
+                DesktopInput.SimulatedShift=false;
+                DesktopInput.SimulatedAlt=false;
+                DesktopInput.SimulatedScreenPosition=null;
+            }
+            var waitEnd=DateTime.UtcNow.AddSeconds(3);
+            do{DesktopInput.Pump(100);}while((manager.ActiveWheel is not null||manager.PlacementPending)&&DateTime.UtcNow<waitEnd);
+            return;
+        }
         var task=Task.Run(()=>
         {
             var key=(byte)(shift?0x10:0x12);var down=false;
