@@ -10,6 +10,14 @@ namespace Nashi.Windows;
 // If SendInput is denied in non-interactive developer environments, routed events act as fallback.
 internal static class DesktopInput
 {
+    private static void DispatchAction(Action action)
+    {
+        if(Application.Current is { } app && app.Dispatcher is { } disp && !disp.HasShutdownStarted)
+        {
+            if(disp.CheckAccess()) action();
+            else disp.BeginInvoke(action);
+        }
+    }
     private static readonly HashSet<System.Windows.Input.Key> ActiveModifiers = [];
     internal static bool SimulatedShift { get; set; }
     internal static bool SimulatedAlt { get; set; }
@@ -43,7 +51,6 @@ internal static class DesktopInput
     internal static string[]? SimulatedDroppedFiles { get; set; }
     internal static void MovePointer(Point point)
     {
-        SimulatedScreenPosition=point;
         if(NativeInputAvailable)
         {
             var moved = SetCursorPos((int)point.X,(int)point.Y);
@@ -52,8 +59,9 @@ internal static class DesktopInput
         }
         if(!NativeInputAvailable)
         {
+            SimulatedScreenPosition=point;
             SimulatedChecks++;
-            Application.Current?.Dispatcher.Invoke(()=>
+            DispatchAction(()=>
             {
                 foreach(Window w in Application.Current.Windows)
                 {
@@ -109,7 +117,7 @@ internal static class DesktopInput
         if(!NativeInputAvailable)
         {
             SimulatedChecks++;
-            Application.Current?.Dispatcher.Invoke(()=>
+            DispatchAction(()=>
             {
                 if(pressed)
                 {

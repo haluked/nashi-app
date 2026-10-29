@@ -62,7 +62,7 @@ public sealed class RangeTimeline:FrameworkElement
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         Focus();var x=(DesktopInput.SimulatedLocalPosition??e.GetPosition(this)).X;laneWidth=Math.Max(1,ActualWidth-24);var a=12+laneWidth*Start/Duration;var b=12+laneWidth*End/Duration;
-        moveRange=x>a+14&&x<b-14;startHandle=Math.Abs(x-a)<=Math.Abs(x-b);originalStart=Start;originalEnd=End;originX=x;dragging=CaptureMouse()||true;e.Handled=true;
+        moveRange=x>a+14&&x<b-14;startHandle=Math.Abs(x-a)<=Math.Abs(x-b);originalStart=Start;originalEnd=End;originX=x;dragging=CaptureMouse()||App.IsSmokeTest;e.Handled=true;
     }
     protected override void OnMouseMove(MouseEventArgs e)
     {

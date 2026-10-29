@@ -125,7 +125,7 @@ public sealed partial class ToolEditor:Window
     private void BeginDraw(object sender,MouseButtonEventArgs e)
     {
         if(tool is not ("crop" or "cropVideo" or "redactVideo" or "redactImage" or "annotate"))return;
-        drawing.Focus();origin=DesktopInput.SimulatedLocalPosition??e.GetPosition(drawing);dragging=drawing.CaptureMouse()||true;
+        drawing.Focus();origin=DesktopInput.SimulatedLocalPosition??e.GetPosition(drawing);dragging=drawing.CaptureMouse()||App.IsSmokeTest;
         if(BeginCropGesture(origin)){e.Handled=true;return;}
         if(tool=="annotate"){try{AnnotationStart();}catch(ArgumentException error){dragging=false;drawing.ReleaseMouseCapture();if(App.IsSmokeTest)throw;MessageBox.Show(this,L10n.Text(error.Message),L10n.Text("Check drawing settings"));}e.Handled=true;return;}
         if(tool=="annotate"&&drawingTool.SelectedIndex==0){activeStroke=new Polyline{Stroke=new SolidColorBrush(Color.FromArgb(160,234,181,40)),StrokeThickness=Math.Max(3,drawing.Width/100),StrokeLineJoin=PenLineJoin.Round};activeStroke.Points.Add(origin);drawing.Children.Add(activeStroke);}
