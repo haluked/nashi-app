@@ -48,30 +48,22 @@ internal sealed class WindowManagement:IDisposable
         if(disposed||objectId!=0||childId!=0||window==0)return;
         if(type==0x000A)
         {
+            pendingPlacement?.Cancel();Clear();if(!enabled()||!Native.IsWindowVisible(window)||Native.IsIconic(window))return;
             if(!mouseDown)return; // Never intercept keyboard-initiated system moves.
-            SimulateMoveStart(window,capturedPoint);
+            target=window;origin=capturedPoint;cancelled=false;timer.Start();Trace?.Invoke($"start pointer={origin.X},{origin.Y}");
         }
         else if(type==0x000B&&window==target)
         {
-            SimulateMoveEnd(capturedPoint,escapeDown);
-        }
-    }
-    internal void SimulateMoveStart(nint window,Native.Point startPoint)
-    {
-        pendingPlacement?.Cancel();Clear();if(!enabled()||!Native.IsWindowVisible(window)||Native.IsIconic(window))return;
-        target=window;origin=startPoint;cancelled=false;timer.Start();Trace?.Invoke($"start pointer={origin.X},{origin.Y}");
-    }
-    internal void SimulateMoveEnd(Native.Point point,bool cancel=false)
-    {
-        if(target==0)return;
-        if(cancel)cancelled=true;
-        wheel?.HoverScreen(new(point.X,point.Y));
-        var selected=wheel?.SelectedIndex??-1;var captured=target;
-        var choice=selected>=0&&selected<placements.Length&&!cancelled?placements[selected]:(WindowPlacement?)null;
-        var work=WorkArea(point);Trace?.Invoke($"end pointer={point.X},{point.Y} selected={selected} cancelled={cancelled}");Clear();
-        if(choice is {} placement)
-        {
-            _=ArrangeAsync(captured,placement,work);
+            // Escape can end the native move loop before the next timer tick sees it.
+            if(escapeDown)cancelled=true;
+            var point=capturedPoint;wheel?.HoverScreen(new(point.X,point.Y));
+            var selected=wheel?.SelectedIndex??-1;var captured=target;
+            var choice=selected>=0&&selected<placements.Length&&!cancelled?placements[selected]:(WindowPlacement?)null;
+            var work=WorkArea(point);Trace?.Invoke($"end pointer={point.X},{point.Y} selected={selected} cancelled={cancelled}");Clear();
+            if(choice is {} placement)
+            {
+                _=ArrangeAsync(captured,placement,work);
+            }
         }
     }
     internal async Task ArrangeAsync(nint captured,WindowPlacement placement,WindowFrame work)
@@ -106,11 +98,9 @@ internal sealed class WindowManagement:IDisposable
         if(!enabled()||target==0||!Native.IsWindow(target)||Native.IsIconic(target)){Clear();return;}
         if((Native.GetAsyncKeyState(0x1B)&0x8000)!=0){cancelled=true;HideOverlays();return;}
         if(cancelled)return;
-        var point=DesktopInput.SimulatedScreenPosition is {} sim
-            ? new Native.Point{X=(int)sim.X,Y=(int)sim.Y}
-            : (Native.GetCursorPos(out var p)?p:default);
+        Native.GetCursorPos(out var point);
         var moved=Math.Abs(point.X-origin.X)+Math.Abs(point.Y-origin.Y)>4;
-        var requested=(Native.GetAsyncKeyState(0x10)&0x8000)!=0||(Native.GetAsyncKeyState(0x12)&0x8000)!=0||DesktopInput.IsShiftPressed||DesktopInput.IsAltPressed;
+        var requested=(Native.GetAsyncKeyState(0x10)&0x8000)!=0||(Native.GetAsyncKeyState(0x12)&0x8000)!=0;
         if(wheel is null&&moved&&requested)ShowWheel(point);
         if(wheel is null)return;
         wheel.HoverScreen(new(point.X,point.Y));

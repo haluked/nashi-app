@@ -55,7 +55,7 @@ public sealed class FloatShelf:Window
         files.SelectionChanged+=(_,_)=>UpdateLabels();
         files.MouseDoubleClick+=(_,_)=>{foreach(var p in Selection())MainWindow.OpenUrl(p);};PreviewKeyDown+=OnKey;
         MouseEnter+=(_,_)=>ScheduleHover(true);MouseLeave+=(_,_)=>ScheduleHover(false);
-        hover.Tick+=(_,_)=>{hover.Stop();if(interacting||Mouse.LeftButton==MouseButtonState.Pressed)return;var isOver=IsMouseOver||(!DesktopInput.NativeInputAvailable&&DesktopInput.SimulatedScreenPosition is {} sim&&DesktopGeometry.Bounds(this).Contains(sim));if(hoverInside&&isOver)SetExpanded(true);else if(!hoverInside&&!isOver)SetExpanded(false);};
+        hover.Tick+=(_,_)=>{hover.Stop();if(interacting||Mouse.LeftButton==MouseButtonState.Pressed)return;if(hoverInside&&IsMouseOver)SetExpanded(true);else if(!hoverInside&&!IsMouseOver)SetExpanded(false);};
         DragOver+=(_,e)=>{e.Effects=e.Data.GetDataPresent(DataFormats.FileDrop)?DragDropEffects.Copy:DragDropEffects.None;e.Handled=true;};
         Drop+=(_,e)=>{if(e.Data.GetData(DataFormats.FileDrop) is string[] incoming)Add(incoming);e.Handled=true;};
         files.ContextMenu=Menu();stack.ContextMenu=Menu();
@@ -73,16 +73,7 @@ public sealed class FloatShelf:Window
     private void Carry(DependencyObject source,string[] selected)
     {
         if(selected.Length==0){interacting=false;return;}interacting=true;hover.Stop();
-        try
-        {
-            if(!DesktopInput.NativeInputAvailable)
-            {
-                DesktopInput.SimulatedDroppedFiles = selected;
-                return;
-            }
-            DragDrop.DoDragDrop(source,new DataObject(DataFormats.FileDrop,selected),DragDropEffects.Copy|DragDropEffects.Move);
-        }
-        finally{interacting=false;Reload();ScheduleHover(false);}
+        try{DragDrop.DoDragDrop(source,new DataObject(DataFormats.FileDrop,selected),DragDropEffects.Copy|DragDropEffects.Move);}finally{interacting=false;Reload();ScheduleHover(false);}
     }
     internal void Add(IEnumerable<string> incoming)
     {
@@ -152,13 +143,12 @@ public sealed class FloatShelf:Window
     private async void OnKey(object sender,KeyEventArgs e)
     {
         try{
-            var modifiers=DesktopInput.EffectiveModifiers;
-            if(modifiers==(ModifierKeys.Control|ModifierKeys.Shift)&&e.Key==Key.C){await action(Selection(),"copyPath");e.Handled=true;return;}
+            if(Keyboard.Modifiers==(ModifierKeys.Control|ModifierKeys.Shift)&&e.Key==Key.C){await action(Selection(),"copyPath");e.Handled=true;return;}
             if(e.Key==Key.Escape){if(files.SelectedItems.Count>0)files.UnselectAll();else SetExpanded(false);e.Handled=true;}
             else if(e.Key==Key.Delete){Remove();e.Handled=true;}
             else if(e.Key==Key.Space){Preview();e.Handled=true;}
             else if(e.Key==Key.Enter){foreach(var p in Selection())MainWindow.OpenUrl(p);e.Handled=true;}
-            else if(modifiers==ModifierKeys.Control){if(e.Key==Key.A){SetExpanded(true);files.SelectAll();e.Handled=true;}else if(e.Key==Key.C){await action(Selection(),"copy");e.Handled=true;}else if(e.Key==Key.V){if(Clipboard.ContainsFileDropList())Add(Clipboard.GetFileDropList().Cast<string>());e.Handled=true;}else if(e.Key==Key.R){foreach(var p in Selection())MainWindow.Reveal(p);e.Handled=true;}else if(e.Key==Key.O){foreach(var p in Selection())MainWindow.OpenUrl(p);e.Handled=true;}}
+            else if(Keyboard.Modifiers==ModifierKeys.Control){if(e.Key==Key.A){SetExpanded(true);files.SelectAll();e.Handled=true;}else if(e.Key==Key.C){await action(Selection(),"copy");e.Handled=true;}else if(e.Key==Key.V){if(Clipboard.ContainsFileDropList())Add(Clipboard.GetFileDropList().Cast<string>());e.Handled=true;}else if(e.Key==Key.R){foreach(var p in Selection())MainWindow.Reveal(p);e.Handled=true;}else if(e.Key==Key.O){foreach(var p in Selection())MainWindow.OpenUrl(p);e.Handled=true;}}
             UpdateLabels();
         }catch(Exception error)when(ActionError(error)){Report(error);}
     }

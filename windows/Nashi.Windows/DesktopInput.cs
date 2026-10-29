@@ -36,7 +36,6 @@ internal static class DesktopInput
     internal static void ReleaseAll()
     {
         IsPrimaryMouseDown = false;
-        ActiveModifiers.Clear();
         SimulatedShift = false;
         SimulatedAlt = false;
         SimulatedControl = false;
@@ -47,7 +46,13 @@ internal static class DesktopInput
         {
             var mouseUp = new Input{Data=new(){Mouse=new(){Flags=4u}}};
             SendInput(1, [mouseUp], Marshal.SizeOf<Input>());
+            foreach(var key in ActiveModifiers)
+            {
+                var keyUp = new Input{Type=1,Data=new(){Keyboard=new(){Key=(ushort)KeyInterop.VirtualKeyFromKey(key),Flags=2u}}};
+                SendInput(1, [keyUp], Marshal.SizeOf<Input>());
+            }
         }
+        ActiveModifiers.Clear();
     }
     private static bool nativeInputFailed;
     [StructLayout(LayoutKind.Sequential)]private struct Input{public uint Type;public Union Data;}
@@ -114,12 +119,19 @@ internal static class DesktopInput
     }
     internal static void Hold(Key key,bool pressed)
     {
-        var input=new Input{Type=1,Data=new(){Keyboard=new(){Key=(ushort)KeyInterop.VirtualKeyFromKey(key),Flags=pressed?0u:2u}}};
-        if(SendInput(1,[input],Marshal.SizeOf<Input>())!=1)
+        if(pressed) ActiveModifiers.Add(key); else ActiveModifiers.Remove(key);
+        if(NativeInputAvailable)
         {
-            nativeInputFailed=true;
+            var input=new Input{Type=1,Data=new(){Keyboard=new(){Key=(ushort)KeyInterop.VirtualKeyFromKey(key),Flags=pressed?0u:2u}}};
+            if(SendInput(1,[input],Marshal.SizeOf<Input>())!=1)
+            {
+                nativeInputFailed=true;
+                SimulatedChecks++;
+            }
+        }
+        else
+        {
             SimulatedChecks++;
-            if(pressed) ActiveModifiers.Add(key); else ActiveModifiers.Remove(key);
         }
     }
     internal static void HoldMouse(bool pressed)

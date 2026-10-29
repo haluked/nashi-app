@@ -40,11 +40,11 @@ public sealed class GlobalDragController:IDisposable
     private void Register(){handle=new WindowInteropHelper(owner).Handle;source=HwndSource.FromHwnd(handle);source.AddHook(Hook);UpdateShortcut();}
     private void UpdateShortcut(){if(handle==IntPtr.Zero)return;var enabled=preferences.Value.Enabled;if(shortcutEnabled==enabled)return;shortcutEnabled=enabled;if(LinkShortcutRegistered)UnregisterHotKey(handle,7701);LinkShortcutRegistered=enabled&&RegisterHotKey(handle,7701,0x4000|0x2|0x4,0x44);}
     private IntPtr Hook(IntPtr window,int message,IntPtr w,IntPtr l,ref bool handled){if(message==0x0312&&w.ToInt32()==7701){if(preferences.Value.Enabled&&OwnerAvailable)link();handled=true;}return IntPtr.Zero;}
-    private static bool Held(int key)=>(GetAsyncKeyState(key)&0x8000)!=0 || (key==0x11&&DesktopInput.IsControlPressed) || (key==0x10&&DesktopInput.IsShiftPressed) || (key==0x12&&DesktopInput.IsAltPressed);
+    private static bool Held(int key)=>(GetAsyncKeyState(key)&0x8000)!=0;
     private string Chord(){var parts=new List<string>();if(Held(0x11))parts.Add("Ctrl");if(Held(0x10))parts.Add("Shift");if(Held(0x12))parts.Add("Alt");return string.Join('+',parts);}
     private void Poll()
     {
-        UpdateShortcut();if(!preferences.Value.Enabled||!OwnerAvailable){wheel?.Close();wheel=null;down=false;opened=false;hint=null;return;}var held=PrimaryMouseButton.IsPressed;NativePoint point;if(DesktopInput.SimulatedScreenPosition is {} sim)point=new NativePoint{X=(int)sim.X,Y=(int)sim.Y};else GetCursorPos(out point);
+        UpdateShortcut();if(!preferences.Value.Enabled||!OwnerAvailable){wheel?.Close();wheel=null;down=false;opened=false;hint=null;return;}var held=PrimaryMouseButton.IsPressed;GetCursorPos(out var point);
         if(!held){if(down){down=false;opened=false;hint=null;if(wheel is {IsVisible:true}){var old=wheel;var dismiss=new System.Windows.Threading.DispatcherTimer{Interval=TimeSpan.FromMilliseconds(150)};dismiss.Tick+=(_,_)=>{dismiss.Stop();if(old.IsVisible)old.Close();};dismiss.Start();}wheel=null;}return;}
         if(!down){down=true;start=point;opened=false;hint=null;return;}if(opened||Math.Abs(point.X-start.X)+Math.Abs(point.Y-start.Y)<10)return;
         hint??=Task.Run(()=>LinkAt(start));var chord=Chord();var p=preferences.Value;var kind=chord==p.ToolsModifier?"tools":chord==p.ConvertModifier?"convert":chord==p.ActionsModifier?"actions":null;if(kind is null)return;opened=true;if(InMoveSize())return;
@@ -86,7 +86,7 @@ internal sealed class GlobalDropWheel:Window
         // so e.Effects is still None even for a valid file drag.
         DragEnter+=(_,e)=>{entered++;Track(e);if(choices.Count>0)Reveal();};
         DragOver+=(_,e)=>{over++;Track(e);if(choices.Count>0)Reveal();};
-        Drop+=(_,e)=>{dropCount++;var id=selection;if(string.IsNullOrEmpty(id)||!DesktopInput.NativeInputAvailable){Track(e);if(!string.IsNullOrEmpty(selection))id=selection;}Close();if(id.Length>0)chosen(e.Data,id);e.Handled=true;};PreviewKeyDown+=(_,e)=>{if(e.Key==Key.Escape){Close();e.Handled=true;}};
+        Drop+=(_,e)=>{dropCount++;Track(e);var id=selection;Close();if(id.Length>0)chosen(e.Data,id);e.Handled=true;};PreviewKeyDown+=(_,e)=>{if(e.Key==Key.Escape){Close();e.Handled=true;}};
     }
     private void Track(DragEventArgs e)
     {
